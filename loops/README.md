@@ -79,6 +79,17 @@ export async function run({ client, log, counters, sleep, config, args, deadline
 `client` is the full protocol client (`world`, `move`, `attack`, `say`, `use`, `walkTo`, `sell`, events…),
 `counters` is the summary object, `shouldStop()` honours `--seconds` and SIGINT/SIGTERM.
 
+## Party loops
+
+[`party/`](party/) is a worked example that is bigger than one character: four loops that play as one
+party - a leader and a fighter that focus the same target, a priest that heals the group, and a
+`merchant` that cannot attack, so it buffs luck, receives loot and sells it. The container example
+lives in [`../examples/party/`](../examples/party/).
+
+Read [`party/README.md`](party/README.md) before adapting them: the interesting parts are the game
+rules they encode (a merchant never loots a party chest, loot piles must be opened, a merchant must be
+within 400 units for `sell`).
+
 ## Writing one
 
 ```sh

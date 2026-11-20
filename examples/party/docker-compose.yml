@@ -1,0 +1,123 @@
+# A party of four on one account: three fighters and a merchant, all cooperating.
+#
+#   docker compose -f examples/party/docker-compose.yml up -d
+#   docker compose -f examples/party/docker-compose.yml logs -f
+#   docker compose -f examples/party/docker-compose.yml down -v
+#
+# Watch any of them in a browser at http://127.0.0.1:18090/?watch=PartyTank
+#
+# Everything the characters need comes from fixtures/party.json, applied by the game container at
+# start: levels, gear, the skills the roles need (partyheal, mluck, Merchant's Luck's level gate) and
+# the farm spot. The party fights around (-100,800) on main - inside the goo field, and inside both
+# the item-transfer radius (B.dist 400) and the sell radius (B.sell_dist 400) of the test merchant
+# the game image injects at (-193,680).
+#
+# Podman works the same way: podman compose (or podman-compose) reads this file unchanged.
+
+name: al-party
+
+# Shared by every client. A service can add to it; anything here that a role overrides is repeated.
+x-client-env: &client-env
+  AL_API: http://al-game:8090
+  # The server advertises its own localhost:7192, so a container needs the service address.
+  AL_GAME_ADDRESS: al-game:7192
+  AL_BOT_EMAIL: ${AL_PARTY_EMAIL:-party@example.test}
+  AL_BOT_PASSWORD: ${AL_PARTY_PASSWORD:-party-password-123}
+  # 0 means "run until SIGTERM": these are long-lived bots, not timed scripts.
+  AL_BOT_SECONDS: "0"
+  # Party wiring. Every loop reads this from the runner's config.
+  AL_PARTY_LEADER: PartyTank
+  AL_PARTY_MEMBERS: PartyTank,PartyMage,PartyPriest,PartyMerch
+  AL_PARTY_MERCHANT: PartyMerch
+  AL_PARTY_ANCHOR: "-100,800"
+  AL_PARTY_SELL_AT: "-193,680"
+  # Hand loot to the merchant once the bag is a third full; sell once the merchant's bag is half full.
+  AL_PARTY_SEND_AT: "0.33"
+  AL_PARTY_SELL_AT_FILL: "0.5"
+  # Heal a member below 60% - the priest's own threshold, not the solo 35%.
+  AL_PARTY_HEAL_BELOW: "0.6"
+  # The loops chat in party chat; keep the runner's solo small talk out of the logs.
+  AL_BOT_SAY: "0"
+
+x-client: &client
+  image: ${AL_CLIENT_IMAGE:-ghcr.io/dionjones615/adventureland-client:latest}
+  depends_on:
+    al-game:
+      condition: service_healthy
+  restart: unless-stopped
+  init: true
+  stop_grace_period: 20s
+  environment:
+    <<: *client-env
+
+services:
+  # The game stack: MongoDB, the account backend and the game server, plus the fixture characters.
+  # No container_name on purpose - compose's project prefix keeps these names distinct from any
+  # other stack on the host (a fixed "al-game" name collides with every other Adventure Land stack).
+  al-game:
+    image: ${AL_GAME_IMAGE:-ghcr.io/dionjones615/adventureland-container:latest}
+    environment:
+      DEFAULT_EMAIL: ${AL_PARTY_EMAIL:-party@example.test}
+      DEFAULT_PASSWORD: ${AL_PARTY_PASSWORD:-party-password-123}
+      SEED_FIXTURES: /app/fixtures/party.json
+      # The game ships no map merchants, so nothing is sellable until one exists. The image injects
+      # this one at start; AL_TEST_MERCHANT=off leaves the stack exactly as upstream ships it (and
+      # then the merchant loop can only hold loot).
+      AL_TEST_MERCHANT: ${AL_TEST_MERCHANT:-main:-193,680}
+    volumes:
+      - ./fixtures:/app/fixtures:ro,z
+      # The pinned game repositories are cloned here on first start (~3 min, needs network).
+      - al-clone:/app/reference/local
+    ports:
+      - "${AL_PARTY_API_PORT:-18090}:8090"
+      - "${AL_PARTY_GAME_PORT:-17192}:7192"
+    healthcheck:
+      # The backend answers before the game socket and the fixtures are ready; the clients retry on
+      # their own, this only keeps them from spinning through the first few minutes.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8090/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      start_period: 300s
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  # The leader owns the party, invites the others, focus-fires and opens chests.
+  al-tank:
+    <<: *client
+    environment:
+      <<: *client-env
+      AL_BOT_CHARACTER: PartyTank
+      AL_PARTY_ROLE: leader
+      BOT_LOOP: /app/loops/party/leader.mjs
+
+  # A second damage dealer. MessagePack on purpose: both wire formats in one party.
+  al-mage:
+    <<: *client
+    environment:
+      <<: *client-env
+      AL_BOT_CHARACTER: PartyMage
+      AL_PARTY_ROLE: fighter
+      AL_BOT_TRANSPORT: msgpack
+      BOT_LOOP: /app/loops/party/fighter.mjs
+
+  # The healer: partyheal when the group is hurt, single-target heal otherwise, mana upkeep.
+  al-priest:
+    <<: *client
+    environment:
+      <<: *client-env
+      AL_BOT_CHARACTER: PartyPriest
+      AL_PARTY_ROLE: priest
+      BOT_LOOP: /app/loops/party/priest.mjs
+
+  # The merchant: cannot fight (the server refuses its attacks), buffs luck, receives loot and sells.
+  al-merchant:
+    <<: *client
+    environment:
+      <<: *client-env
+      AL_BOT_CHARACTER: PartyMerch
+      AL_PARTY_ROLE: merchant
+      BOT_LOOP: /app/loops/party/merchant.mjs
+
+volumes:
+  al-clone:

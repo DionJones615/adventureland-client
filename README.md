@@ -45,6 +45,32 @@ A loop exports **either** `decide(state)` — pure, returns an action the runner
 `run({ client, log, counters, sleep, config })` for full control. The contract, the state shape, the action table and
 a worked example are in [`loops/README.md`](loops/README.md).
 
+## A party of four: 3 characters + a merchant
+
+[examples/party/](examples/party/) is a full stack: the game container plus four client containers on one account,
+playing together. Three fighters focus the same target, a priest keeps the group alive, and a
+`merchant` - a class that the server refuses to let attack - buffs luck, receives the fighters' loot
+and sells it.
+
+```sh
+docker compose -f examples/party/docker-compose.yml up -d
+docker compose -f examples/party/docker-compose.yml logs -f
+# watch one of them: http://127.0.0.1:18090/?watch=PartyTank
+docker compose -f examples/party/docker-compose.yml down -v
+```
+
+The party is built out of four decisions the game actually supports (all sourced in
+[loops/party/README.md](loops/party/README.md)):
+
+| decision | why |
+| --- | --- |
+| focus fire by a **shared, deterministic target** (nearest to the anchor, then lowest hp, then id) | no chat round-trips and no coordination service: every client computes the same answer from its own view |
+| the merchant **cannot fight** (`commence_attack` answers `attack_failed`), so it buffs and trades | that is the class, and it keeps the merchant out of the melee |
+| loot moves by **sendItem**, not by looting | a party chest splits items by damage share, and a merchant's share is always 0 |
+| selling needs a **merchant coordinate** | upstream ships no map merchants; the game image injects a test sell point (see [adventureland-container](https://github.com/DionJones615/adventureland-container)) |
+
+Roles, logs and failure modes are in [examples/party/README.md](examples/party/README.md).
+
 ## Env vars of the image
 
 | variable | meaning |
@@ -52,17 +78,22 @@ a worked example are in [`loops/README.md`](loops/README.md).
 | `AL_API` | account API base, e.g. `http://al-game:8090` |
 | `AL_GAME_ADDRESS` | game socket `host:port` (**required in a container**: the server advertises its own `localhost`) |
 | `BOT_LOOP` | loop module path, default `/app/loops/basic.mjs` |
-| `AL_BOT_CHARACTER`, `AL_BOT_SECONDS`, `AL_BOT_VENDOR_AT`, `AL_BOT_SAY`, `AL_BOT_TRANSPORT` | bot knobs |
+| `AL_BOT_CHARACTER`, `AL_BOT_VENDOR_AT`, `AL_BOT_SAY`, `AL_BOT_TRANSPORT` | bot knobs |
+| `AL_BOT_SECONDS` | run time; **0 or negative means "until SIGTERM"** (what the image sets) |
 | `AL_BOT_EMAIL`, `AL_BOT_PASSWORD` | credentials (defaults are the container's dev account) |
+| `AL_PARTY_LEADER`, `AL_PARTY_MEMBERS`, `AL_PARTY_MERCHANT` | party owner, the members to invite (comma list), and the merchant that receives loot |
+| `AL_PARTY_ANCHOR`, `AL_PARTY_SELL_AT` | `x,y` farm point, and `x,y` of a merchant within 400 units |
+| `AL_PARTY_SEND_AT`, `AL_PARTY_SELL_AT_FILL`, `AL_PARTY_HEAL_BELOW` | bag fractions for the handover and the sale, and the priest's heal threshold |
+| `AL_PARTY_ROLE` | label the loop prints, so four containers' logs stay tellable apart |
 
 Mount `/app/reference/game-data` read-only to use a pinned copy of `data.js` instead of the one baked at build time.
 
 ## Tests
 
 ```sh
-npm run test:unit                  # codec, entity deltas, queue, pathfinder, bot loop, vendor, loop contract
+npm run test:unit                  # codec, entity deltas, queue, pathfinder, bot loop, vendor, party helpers, fixtures
 npm run e2e:up                     # pull + start ghcr.io/dionjones615/adventureland-container:latest
-npm run test:e2e                   # e2e against that image (8 tests)
+npm run test:e2e                   # e2e against that image (9 tests)
 npm run e2e:down
 ```
 
@@ -72,9 +103,14 @@ run serially (`--test-concurrency=1`) because they share those characters; overr
 a `:sha-<short>` tag for reproducible runs.
 
 The suite covers: account API and fixtures, entering a fixture character (inventory, equipment, level, gold,
-position), moving, routed pathfinding, chat, combat, the MessagePack transport, and **two clients on one account at
+position), moving, routed pathfinding, chat, combat, the MessagePack transport, **two clients on one account at
 once** — a JSON session and a MessagePack session driving two characters that see each other in the world and follow
-each other's movement.
+each other's movement — and **a party of four** (three fighters plus a merchant) that forms one party, focus-fires,
+heals, hands loot over and sells it.
+
+`e2e:up` seeds two accounts: `dev@example.test` (the two single-character fixtures) and `party@example.test`
+(the four party characters, from the same file the compose example mounts) — one account only has five character
+slots.
 
 Restart the stack (`e2e:down && e2e:up`) before re-running locally: the tests move characters, and a character left
 online by an aborted run is a ghost whose server-side position no longer matches its document.

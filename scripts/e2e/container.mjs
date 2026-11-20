@@ -37,6 +37,9 @@ const apiPort = value("api-port", process.env.AL_E2E_API_PORT || "18090");
 const gamePort = value("game-port", process.env.AL_E2E_GAME_PORT || "17192");
 const clone = path.resolve(value("clone", process.env.AL_E2E_CLONE || path.join(ROOT, ".e2e-clone")));
 const fixtures = path.resolve(value("fixtures", path.join(ROOT, "test/e2e/fixtures/client-e2e.json")));
+// The party example has its own fixture file and its own account: one account only has five
+// character slots, and the example needs four characters of its own.
+const partyFixtures = path.resolve(value("party-fixtures", path.join(ROOT, "examples/party/fixtures")));
 
 function run(argv, { quiet = false, inherit = false } = {}) {
 	return new Promise((resolve, reject) => {
@@ -76,6 +79,7 @@ async function up() {
 		"-e", "DEFAULT_PASSWORD=" + (process.env.AL_E2E_PASSWORD || "dev-password-123"),
 		"-e", "SEED_FIXTURES=/app/fixtures/" + path.basename(fixtures),
 		"-v", path.dirname(fixtures) + ":/app/fixtures:ro,z",
+		"-v", partyFixtures + ":/app/party-fixtures:ro,z",
 		"-v", clone + ":/app/reference/local:z",
 		image,
 	]);
@@ -101,13 +105,21 @@ async function up() {
 			const content = JSON.parse(await fs.readFile(marker, "utf8"));
 			if (content.failures) throw new Error("the fixture seeder reported " + content.failures + " failure(s) - see " + (await run(["logs", NAME], { quiet: true })).slice(-3000));
 			console.log("[e2e] ready: api " + api + ", game 127.0.0.1:" + gamePort);
+			// The party account: four characters, including the merchant, on their own account.
+			console.log("[e2e] seeding the party account from " + path.join(partyFixtures, "party.json"));
+			const seeded = await run(["exec", NAME, "node", "/app/scripts/local/seed_fixtures.mjs", "--file", "/app/party-fixtures/party.json"], { quiet: true });
+			if (!/0 failure/.test(seeded)) throw new Error("the party fixture seeder reported a failure:\n" + seeded.slice(-3000));
+			console.log("[e2e] party account ready: " + (seeded.match(/\[fixtures\] \d+ character\(s\) seeded[^\n]*/) || ["seed ok"])[0]);
 			// The server advertises localhost:<internal port>; on the host the published port is
 			// different, so the tests need the explicit game-socket address.
 			console.log("AL_E2E_API=" + api);
 			console.log("AL_E2E_ADDRESS=127.0.0.1:" + gamePort);
 			// Persist it: CI steps do not share shell environments, and the tests read this file when the
 			// corresponding env var is absent.
-			await fs.writeFile(path.join(ROOT, ".e2e-env.json"), JSON.stringify({ api, address: "127.0.0.1:" + gamePort, image }, null, 2) + "\n");
+			await fs.writeFile(
+				path.join(ROOT, ".e2e-env.json"),
+				JSON.stringify({ api, address: "127.0.0.1:" + gamePort, image, party: { email: "party@example.test", password: "party-password-123" } }, null, 2) + "\n",
+			);
 			return;
 		}
 		await sleep(4_000);

@@ -1,0 +1,225 @@
+{
+  "account": {
+    "email": "party@example.test",
+    "password": "party-password-123"
+  },
+  "characters": [
+    {
+      "name": "PartyTank",
+      "type": "warrior",
+      "level": 40,
+      "map": "main",
+      "x": -100,
+      "y": 800,
+      "gold": 500,
+      "hp": 180,
+      "mp": 80,
+      "inventory": [
+        {
+          "slot": 0,
+          "name": "rattail",
+          "q": 1
+        },
+        {
+          "slot": 1,
+          "name": "ink",
+          "q": 1
+        },
+        {
+          "slot": 2,
+          "name": "smush",
+          "q": 1
+        },
+        {
+          "slot": 3,
+          "name": "pleather",
+          "q": 1
+        },
+        {
+          "slot": 4,
+          "name": "beewings",
+          "q": 1
+        },
+        {
+          "slot": 5,
+          "name": "crabclaw",
+          "q": 1
+        },
+        {
+          "slot": 6,
+          "name": "seashell",
+          "q": 1
+        },
+        {
+          "slot": 7,
+          "name": "rattail",
+          "q": 1
+        },
+        {
+          "slot": 8,
+          "name": "ink",
+          "q": 1
+        },
+        {
+          "slot": 9,
+          "name": "smush",
+          "q": 1
+        },
+        {
+          "slot": 10,
+          "name": "pleather",
+          "q": 1
+        },
+        {
+          "slot": 11,
+          "name": "beewings",
+          "q": 1
+        },
+        {
+          "slot": 12,
+          "name": "crabclaw",
+          "q": 1
+        },
+        {
+          "slot": 13,
+          "name": "seashell",
+          "q": 1
+        },
+        {
+          "slot": 14,
+          "name": "rattail",
+          "q": 1
+        },
+        {
+          "slot": 15,
+          "name": "ink",
+          "q": 1
+        },
+        {
+          "slot": 16,
+          "name": "smush",
+          "q": 1
+        },
+        {
+          "slot": 20,
+          "name": "hpot1",
+          "q": 30
+        },
+        {
+          "slot": 21,
+          "name": "mpot1",
+          "q": 10
+        }
+      ],
+      "equipment": {
+        "mainhand": {
+          "name": "sword",
+          "level": 3
+        },
+        "helmet": {
+          "name": "helmet"
+        }
+      }
+    },
+    {
+      "name": "PartyMage",
+      "type": "mage",
+      "level": 40,
+      "map": "main",
+      "x": -130,
+      "y": 820,
+      "gold": 300,
+      "hp": 300,
+      "mp": 600,
+      "skills": {
+        "fireball": {
+          "level": 20
+        }
+      },
+      "inventory": [
+        {
+          "slot": 0,
+          "name": "hpot1",
+          "q": 40
+        },
+        {
+          "slot": 1,
+          "name": "mpot1",
+          "q": 40
+        }
+      ],
+      "equipment": {
+        "mainhand": {
+          "name": "staff",
+          "level": 2
+        }
+      }
+    },
+    {
+      "name": "PartyPriest",
+      "type": "priest",
+      "level": 40,
+      "map": "main",
+      "x": -70,
+      "y": 820,
+      "gold": 300,
+      "hp": 300,
+      "mp": 650,
+      "skills": {
+        "heal": {
+          "level": 1
+        },
+        "partyheal": {
+          "level": 1
+        }
+      },
+      "inventory": [
+        {
+          "slot": 0,
+          "name": "hpot1",
+          "q": 30
+        },
+        {
+          "slot": 1,
+          "name": "mpot1",
+          "q": 30
+        }
+      ],
+      "equipment": {
+        "mainhand": {
+          "name": "staff",
+          "level": 2
+        }
+      }
+    },
+    {
+      "name": "PartyMerch",
+      "type": "merchant",
+      "level": 40,
+      "map": "main",
+      "x": -100,
+      "y": 860,
+      "gold": 200,
+      "hp": 120,
+      "mp": 300,
+      "skills": {
+        "mluck": {
+          "level": 1
+        }
+      },
+      "inventory": [
+        {
+          "slot": 0,
+          "name": "gslime",
+          "q": 3
+        }
+      ],
+      "equipment": {
+        "mainhand": {
+          "name": "staff",
+          "level": 0
+        }
+      }
+    }
+  ]
+}
