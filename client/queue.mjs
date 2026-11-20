@@ -52,7 +52,6 @@ export class RequestQueue {
 				this.pending.delete(id);
 				reject(new TimeoutError(event, timeoutMs));
 			}, timeoutMs);
-			entry.timer.unref?.();
 			this.pending.set(id, entry);
 			this._sendWhenAllowed(entry);
 		});
@@ -63,7 +62,9 @@ export class RequestQueue {
 		const interval = this.interval(entry.event);
 		const last = this.lastSent.get(entry.event) ?? 0;
 		const wait = last + interval - this.now();
-		if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait).unref?.());
+		// Deliberately NOT unref: a request in flight means the process still has work to do, and an
+		// unref timer lets the event loop drain before the answer arrives (a flaky test on Node 22).
+		if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
 		if (!this.pending.has(entry.id)) return; // already timed out
 		this.lastSent.set(entry.event, this.now());
 		try {

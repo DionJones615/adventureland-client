@@ -105,6 +105,9 @@ async function up() {
 			// different, so the tests need the explicit game-socket address.
 			console.log("AL_E2E_API=" + api);
 			console.log("AL_E2E_ADDRESS=127.0.0.1:" + gamePort);
+			// Persist it: CI steps do not share shell environments, and the tests read this file when the
+			// corresponding env var is absent.
+			await fs.writeFile(path.join(ROOT, ".e2e-env.json"), JSON.stringify({ api, address: "127.0.0.1:" + gamePort, image }, null, 2) + "\n");
 			return;
 		}
 		await sleep(4_000);
@@ -114,6 +117,8 @@ async function up() {
 
 async function down() {
 	await run(["rm", "-f", NAME]).catch((error) => console.log("[e2e] " + error.message));
+	// The environment file describes a stack that no longer exists.
+	await fs.rm(path.join(ROOT, ".e2e-env.json"), { force: true }).catch(() => {});
 }
 
 const commands = {

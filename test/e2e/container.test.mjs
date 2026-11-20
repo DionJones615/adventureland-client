@@ -5,18 +5,25 @@
 // the container's fixture pipeline at once.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { ALClient } from "../../client/index.mjs";
 import { AccountApi } from "../../client/http.mjs";
 
-const API = process.env.AL_E2E_API || "http://127.0.0.1:18090";
+// e2e:up writes what it started; env vars win so CI can point the suite somewhere else.
+let fileEnv = {};
+try {
+	fileEnv = JSON.parse(readFileSync(new URL("../../.e2e-env.json", import.meta.url), "utf8"));
+} catch {}
+
+const API = process.env.AL_E2E_API || fileEnv.api || "http://127.0.0.1:18090";
 const EMAIL = process.env.AL_E2E_EMAIL || "dev@example.test";
 const PASSWORD = process.env.AL_E2E_PASSWORD || "dev-password-123";
 
 // The server advertises localhost:7192 (its own container), while the published port is 17192 -
 // so when e2e:up tells us the address, use it. Without it the client tries the internal port.
-const ADDRESS = process.env.AL_E2E_ADDRESS || null;
+const ADDRESS = process.env.AL_E2E_ADDRESS || fileEnv.address || null;
 const CONNECT = ADDRESS ? { address: ADDRESS, path: "/socket.io/", msgpackPath: "/socket.io-msgpack/" } : {};
 
 const MAGE = { name: "ClientMage", map: "main", x: -120, y: 760, level: 30, gold: 1234 };

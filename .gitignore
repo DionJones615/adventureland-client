@@ -4,4 +4,5 @@ reference/game-data/
 reference/upstream/
 node_modules/
 .e2e-clone/
+.e2e-env.json
 *.log
