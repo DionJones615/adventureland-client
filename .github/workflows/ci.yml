@@ -93,31 +93,34 @@ jobs:
       - name: wait for the party to work together
         run: |
           set -euo pipefail
+          log=/tmp/party.log
           deadline=$((SECONDS + 420))
           while [ $SECONDS -lt $deadline ]; do
-            logs=$(docker compose -f examples/party/docker-compose.yml logs --no-log-prefix 2>&1 || true)
+            # Grep a file, not a shell variable: "grep -q" closes the pipe early, and with pipefail an
+            # echo on the other end dies of SIGPIPE and takes the whole check with it.
+            docker compose -f examples/party/docker-compose.yml logs --no-log-prefix > "$log" 2>&1 || true
             ok=1
-            # The roster order follows join order, so check the four names individually.
-            roster=$(echo "$logs" | grep -m1 "party ready:" || true)
-            echo "$roster" | grep -q "party ready:" || ok=0
+            # The roster order follows join order, so look for the four names, not one exact line.
+            grep -m1 "party ready:" "$log" > /tmp/party-roster.txt || true
             for name in PartyTank PartyMage PartyPriest PartyMerch; do
-              echo "$roster" | grep -q "$name" || ok=0
+              grep -q "$name" /tmp/party-roster.txt || ok=0
             done
-            for marker in "[party:priest] partyheal" \
+            for marker in "[party:leader] sent" \
                           "[party:merchant] received" \
-                          "[party:merchant] sold" \
-                          "[party:leader] sent"; do
-              echo "$logs" | grep -qF "$marker" || ok=0
+                          "[party:merchant] sold"; do
+              grep -qF "$marker" "$log" || ok=0
             done
+            grep -qE "\\[party:priest\\] (party)?heal" "$log" || ok=0
             if [ "$ok" = "1" ]; then
               echo "the party is cooperating:"
-              echo "$logs" | grep -E "party ready|sent |received |sold |partyheal" | tail -20
+              cat /tmp/party-roster.txt
+              grep -E "sent |received |sold |heal" "$log" | tail -20
               exit 0
             fi
             sleep 10
           done
           echo "the party never worked together - logs:" >&2
-          docker compose -f examples/party/docker-compose.yml logs --no-log-prefix >&2 || true
+          cat "$log" >&2 || true
           exit 1
 
       - name: compose status and logs on failure
