@@ -72,9 +72,14 @@ services:
       - "${AL_PARTY_API_PORT:-18090}:8090"
       - "${AL_PARTY_GAME_PORT:-17192}:7192"
     healthcheck:
-      # The backend answers before the game socket and the fixtures are ready; the clients retry on
-      # their own, this only keeps them from spinning through the first few minutes.
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8090/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      # Healthy means: the backend answers AND the fixtures are applied. The second half matters - a
+      # client that starts before its character exists would create it as a fresh level-1 mage and the
+      # fixture would arrive too late. The marker is written by the fixture seeder when it finishes.
+      test:
+        - CMD-SHELL
+        - >-
+          test -f /app/reference/local/.state/fixtures.ready &&
+          node -e "fetch('http://127.0.0.1:8090/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
       interval: 15s
       timeout: 5s
       retries: 40

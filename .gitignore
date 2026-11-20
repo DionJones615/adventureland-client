@@ -6,3 +6,6 @@ node_modules/
 .e2e-clone/
 .e2e-env.json
 *.log
+
+# Local credentials for the compose example (copy .env.example)
+.env

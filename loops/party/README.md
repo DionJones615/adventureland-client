@@ -72,7 +72,7 @@ Every knob is an env var on the client image (or the matching `--party-*` flag):
 | `AL_PARTY_SEND_AT` | `0.4` | bag fraction at which a fighter walks to the merchant |
 | `AL_PARTY_SELL_AT_FILL` | `0.5` | bag fraction at which the merchant sells |
 | `AL_PARTY_HEAL_BELOW` | `0.55` | hp fraction below which the priest heals |
-| `AL_PARTY_ROLE` | – | log label only (`[party:<role>]`) |
+| `AL_PARTY_ROLE` | – | reported in the summary line; the log prefix comes from the loop file |
 
 ## Running one by hand
 

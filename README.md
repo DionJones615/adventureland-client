@@ -84,7 +84,7 @@ Roles, logs and failure modes are in [examples/party/README.md](examples/party/R
 | `AL_PARTY_LEADER`, `AL_PARTY_MEMBERS`, `AL_PARTY_MERCHANT` | party owner, the members to invite (comma list), and the merchant that receives loot |
 | `AL_PARTY_ANCHOR`, `AL_PARTY_SELL_AT` | `x,y` farm point, and `x,y` of a merchant within 400 units |
 | `AL_PARTY_SEND_AT`, `AL_PARTY_SELL_AT_FILL`, `AL_PARTY_HEAL_BELOW` | bag fractions for the handover and the sale, and the priest's heal threshold |
-| `AL_PARTY_ROLE` | label the loop prints, so four containers' logs stay tellable apart |
+| `AL_PARTY_ROLE` | reported in the run's summary line, so four containers' runs can be told apart |
 
 Mount `/app/reference/game-data` read-only to use a pinned copy of `data.js` instead of the one baked at build time.
 

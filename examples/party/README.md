@@ -88,7 +88,7 @@ Each client prints a `summary {json}` line on shutdown, so a run can be measured
 
 | symptom | cause |
 | --- | --- |
-| the clients log `waiting for ...` for minutes | the game container is still cloning and installing the pinned repositories (first start only) |
+| the clients log `waiting for ...` for minutes | the game container is still cloning and installing the pinned repositories (first start only); it reports healthy only once the fixtures are applied |
 | `party still incomplete` | a member is not online yet; the leader keeps inviting, and members keep requesting |
 | `send ... refused: distance` | the merchant is more than 400 units away - the fighter walks to it first |
 | `sell ... failed: distance` | no merchant within 400: the stack was started with `AL_TEST_MERCHANT=off` |

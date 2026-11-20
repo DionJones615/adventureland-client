@@ -97,11 +97,16 @@ jobs:
           while [ $SECONDS -lt $deadline ]; do
             logs=$(docker compose -f examples/party/docker-compose.yml logs --no-log-prefix 2>&1 || true)
             ok=1
-            for marker in "party ready: PartyTank, PartyMage, PartyPriest, PartyMerch" \
-                          "[party:priest] partyheal" \
+            # The roster order follows join order, so check the four names individually.
+            roster=$(echo "$logs" | grep -m1 "party ready:" || true)
+            echo "$roster" | grep -q "party ready:" || ok=0
+            for name in PartyTank PartyMage PartyPriest PartyMerch; do
+              echo "$roster" | grep -q "$name" || ok=0
+            done
+            for marker in "[party:priest] partyheal" \
                           "[party:merchant] received" \
                           "[party:merchant] sold" \
-                          "[party:tank] sent"; do
+                          "[party:leader] sent"; do
               echo "$logs" | grep -qF "$marker" || ok=0
             done
             if [ "$ok" = "1" ]; then
