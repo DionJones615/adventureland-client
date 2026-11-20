@@ -62,16 +62,22 @@ Mount `/app/reference/game-data` read-only to use a pinned copy of `data.js` ins
 ```sh
 npm run test:unit                  # codec, entity deltas, queue, pathfinder, bot loop, vendor, loop contract
 npm run e2e:up                     # pull + start ghcr.io/dionjones615/adventureland-container:latest
-npm run test:e2e                   # e2e against that image (7 tests)
+npm run test:e2e                   # e2e against that image (8 tests)
 npm run e2e:down
 ```
 
 `e2e:up` wipes the clone's database (not its `node_modules`) so the fixtures from
-[`test/e2e/fixtures/client-e2e.json`](test/e2e/fixtures/client-e2e.json) are what the assertions see. Override the
-image with `AL_IMAGE` — pin a `:sha-<short>` tag for reproducible runs.
+[`test/e2e/fixtures/client-e2e.json`](test/e2e/fixtures/client-e2e.json) are what the assertions see. The e2e files
+run serially (`--test-concurrency=1`) because they share those characters; override the image with `AL_IMAGE` — pin
+a `:sha-<short>` tag for reproducible runs.
 
-The e2e suite covers: account API and fixtures, entering a fixture character (inventory, equipment, level, gold,
-position), moving, routed pathfinding, chat, combat, and the MessagePack transport.
+The suite covers: account API and fixtures, entering a fixture character (inventory, equipment, level, gold,
+position), moving, routed pathfinding, chat, combat, the MessagePack transport, and **two clients on one account at
+once** — a JSON session and a MessagePack session driving two characters that see each other in the world and follow
+each other's movement.
+
+Restart the stack (`e2e:down && e2e:up`) before re-running locally: the tests move characters, and a character left
+online by an aborted run is a ghost whose server-side position no longer matches its document.
 
 ## Credits
 
