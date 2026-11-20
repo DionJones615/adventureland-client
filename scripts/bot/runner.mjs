@@ -20,9 +20,34 @@ export const DEFAULT_LOOP = new URL("../../loops/basic.mjs", import.meta.url).pa
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** An account API that is not on this machine is the live game: mutating runs need --live. */
+/**
+ * Is this account API a local stack rather than the live game?
+ *
+ * Loopback, a container/service name ("al-game"), a private address and the usual local suffixes all
+ * count: the compose example talks to http://al-game:8090 from inside the network, and treating that
+ * as the live game would refuse to run the very example this repository ships.
+ */
 export function isLocalApi(api) {
-	return /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/i.test(String(api || ""));
+	let host;
+	try {
+		host = new URL(String(api || "")).hostname.toLowerCase();
+	} catch {
+		return false;
+	}
+	if (!host) return false;
+	if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]") return true;
+	// A single label is a container/compose service name (al-game, game, backend).
+	if (!host.includes(".")) return true;
+	if (host.endsWith(".local") || host.endsWith(".internal") || host.endsWith(".localhost") || host.endsWith(".test") || host.endsWith(".home.arpa")) return true;
+	const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+	if (ipv4) {
+		const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+		if (a === 127 || a === 10) return true;
+		if (a === 192 && b === 168) return true;
+		if (a === 172 && b >= 16 && b <= 31) return true;
+		return false;
+	}
+	return false;
 }
 
 /**

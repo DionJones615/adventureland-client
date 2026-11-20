@@ -16,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ALClient } from "../../client/index.mjs";
 import { createPublisher } from "../bot/publish.mjs";
-import { LOCAL_API, bootClient, driveLoop, emptyCounters, loadLoop, requireLiveAck, resolveRunWindow, sleep } from "../bot/runner.mjs";
+import { LOCAL_API, bootClient, driveLoop, emptyCounters, isLocalApi, loadLoop, requireLiveAck, resolveRunWindow, sleep } from "../bot/runner.mjs";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -31,14 +31,9 @@ export const ROLES = {
 const NEWLINE = String.fromCharCode(10);
 const off = (value) => value === "0" || value === "off" || value === "false";
 const on = (value) => value === "1" || value === "on" || value === "true";
-const isLocal = (api) => {
-	try {
-		const host = new URL(String(api)).hostname;
-		return host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
-	} catch {
-		return false;
-	}
-};
+// The same rule the runner uses: a loopback/private address or a compose service name is a local
+// stack, not a character on a real account.
+const isLocal = isLocalApi;
 
 /** A KEY=VALUE file: # comments, optional export/quoting. No interpolation on purpose. */
 export function parseEnvFile(text) {

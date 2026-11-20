@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPlan, clientArgs, parseEnvFile, parseRoles } from "../../scripts/live/party.mjs";
-import { partyConfig } from "../../scripts/bot/runner.mjs";
+import { isLocalApi, partyConfig } from "../../scripts/bot/runner.mjs";
 
 const LIVE_ENV = {
 	AL_USERNAME: "someone@example.test",
@@ -88,6 +88,15 @@ test("per-client args carry the gates into every loop", () => {
 	assert.equal(party.ownLoot, true);
 	assert.deepEqual(party.anchor, { x: -193, y: 780 });
 	assert.deepEqual(party.sellAt, { x: -193, y: 680 });
+});
+
+test("the local-API gate counts loopback, private addresses and compose service names", () => {
+	// The compose example talks to http://al-game:8090 from inside the network: refusing that as "the
+	// live game" would break the very example this repository ships.
+	const local = ["http://al-game:8090", "http://127.0.0.1:8090", "http://localhost:18090", "http://10.1.2.3:8090", "http://192.168.1.9:8090", "http://172.20.0.4:8090", "http://[::1]:8090"];
+	const remote = ["https://adventure.land", "https://de.adventure.land", "http://example.com", "not a url"];
+	for (const api of local) assert.equal(isLocalApi(api), true, api + " is a local stack");
+	for (const api of remote) assert.equal(isLocalApi(api), false, api + " is not local");
 });
 
 test("a local API needs no server, and flags override the env file", () => {
