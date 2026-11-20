@@ -89,8 +89,59 @@ export function createActions(client) {
 			});
 		},
 
-		async say(message, { timeoutMs = 3000 } = {}) {
-			return client.queue.push("say", { message }, { timeoutMs }).catch((error) => {
+		/** Chat. Party chat (`party: true`) reaches every member of your party wherever they are. */
+		async say(message, { party = false, timeoutMs = 3000 } = {}) {
+			const payload = { message };
+			if (party) payload.party = true;
+			return client.queue.push("say", payload, { timeoutMs }).catch((error) => {
+				if (error.name === "TimeoutError") return null;
+				throw error;
+			});
+		},
+
+		/**
+		 * Party protocol: one event, one optional member name.
+		 *
+		 *   invite / request / accept / raccept / leave / kick  -> see node/server.js socket.on("party")
+		 *
+		 * The answer is a flat game_response (place "party"); the roster follows separately as a
+		 * party_update event, which world.mjs keeps as world.party.
+		 */
+		async party({ event, name } = {}, { timeoutMs = 4000 } = {}) {
+			const payload = { event };
+			if (name !== undefined) payload.name = name;
+			return client.queue.push("party", payload, { timeoutMs });
+		},
+
+		/**
+		 * Open a loot chest by the id the server put on its "drop" packet. Chests are not collected
+		 * by walking over them - the browser client sends this, and so must we. Party chests are
+		 * split server-side by each member's damage share.
+		 */
+		async openChest(id, { timeoutMs = 6000 } = {}) {
+			return client.queue
+				.push("open_chest", { id }, {
+					// Either the loot packet, or a refusal (a full bag answers loot_no_space with
+					// place "open_chest"). Both settle the request; only one of them has items.
+					resolveOn: ["chest_opened", "game_response"],
+					match: (payload, event) =>
+						(event === "chest_opened" && payload && String(payload.id) === String(id)) ||
+						(event === "game_response" && payload && payload.place === "open_chest"),
+					timeoutMs,
+				})
+				.catch((error) => {
+					if (error.name === "TimeoutError") return null;
+					throw error;
+				});
+		},
+
+		/**
+		 * Hand an item to another character on the same map (the server checks B.dist = 400):
+		 * { name: receiver, num: bag slot, q: quantity }. It is the only way to move loot between
+		 * characters - there is no trade window in this build.
+		 */
+		async sendItem({ name, num, q = 1 } = {}, { timeoutMs = 4000 } = {}) {
+			return client.queue.push("send", { name, num, q }, { timeoutMs }).catch((error) => {
 				if (error.name === "TimeoutError") return null;
 				throw error;
 			});

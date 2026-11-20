@@ -27,10 +27,10 @@ protocol against a local server (`npm run local:up`) and to make the protocol le
 | `http.mjs` | `AccountApi`: `POST /api/<method>`, cookie jar, `infs[]` parsing |
 | `transport/socket.mjs` | `socket.io-client` wrapper, one transport, explicit lifecycle |
 | `transport/msgpack-parser.mjs` | Socket.IO v5 packet codec for the MessagePack endpoint |
-| `world.mjs` | entity store, delta reconstruction, self adoption |
+| `world.mjs` | entity store, delta reconstruction, self adoption, party roster (`world.party`) |
 | `movement.mjs` | local movement prediction and `correction` handling |
 | `queue.mjs` | rate-limited request queue, response correlation, timeouts |
-| `actions.mjs` | `move`, `walkTo`, `attack`, `useSkill`, `say`, `use`, `equip`, `respawn`, `sendUpdates`, `stop` |
+| `actions.mjs` | `move`, `walkTo`, `attack`, `useSkill`, `say` (map or party), `use`, `equip`, `sell`, `respawn`, `sendUpdates`, `stop`, `party`, `openChest`, `sendItem` |
 | `pathfinder.mjs` | A* over map wall segments (`x_lines`/`y_lines`), the same test the game uses |
 | `game-data.mjs` | loads `G` from the corpus `data.js` snapshot |
 | `errors.mjs` | `ClientError`, `ResponseError`, `TimeoutError`, `DisconnectedError` |
@@ -68,6 +68,25 @@ await client.walkTo({ x: 120, y: 700 });
 await client.attack("42");
 await client.say("hello");
 ```
+
+## The cooperative calls
+
+Four events carry everything a party needs. All of them are implemented in `actions.mjs` and the
+first three are the reason `scripts/bot/party.mjs` and `loops/party/` exist:
+
+```js
+await client.party({ event: "invite", name: "PartyMage" });  // or request / accept / raccept / leave / kick
+const chest = await client.openChest(drop.id);               // loot piles are OPENED, never collected by walking
+await client.sendItem({ name: "PartyMerch", num: 3, q: 10 }); // hand a bag slot to another character nearby
+await client.say("focus the goo", { party: true });          // party chat reaches every member, anywhere
+```
+
+| call | server rule it obeys |
+| --- | --- |
+| `party` | leader-only invites are not enforced, only order matters for `kick`; the roster arrives as `party_update` (`world.party`) |
+| `openChest` | answers `chest_opened` with items+gold, or `game_response` `loot_no_space`; a *party* chest is split by each member's damage share |
+| `sendItem` | receiver must be on the same map within `B.dist` (400); refused in bank mode |
+| `say(…, { party: true })` | every member gets a `partym` packet (400 ms chat throttle) |
 
 ## Watching a character
 
@@ -108,6 +127,8 @@ reconnect, and parity between the JSON and MessagePack transports.
 ## Deliberate limits
 
 - No stat recalculation (`calculate_player_stats`), so `max_hp`/`max_mp` come from the server only.
-- No inventory/equipment model, no party/trade, no CODE-slot execution, no UI, no auto-play loop.
+- No inventory/equipment model, no trade window (there is none in this build - `sendItem` is how items
+  move between characters), no CODE-slot execution, no UI, no auto-play loop. Party membership is
+  tracked as a roster; the strategy lives in `loops/party/`.
 - `walkTo` plans over wall segments only; moving entities are not treated as obstacles.
 - Reconnection is exposed as events; automatic resumption is left to the caller.

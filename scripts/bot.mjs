@@ -3,6 +3,7 @@
 //
 //   node scripts/bot.mjs --character Devmage --seconds 120
 //   node scripts/bot.mjs --character Devmage --loop ./my-loops/aggressive.mjs
+//   node scripts/bot.mjs --character PartyMerch --loop ./loops/party/merchant.mjs --seconds 0
 //
 // The runner owns the plumbing - login, account/character bootstrap, connect, action execution,
 // counters - and asks a loop module what to do. Loops are plain ES modules and can be mounted into
@@ -18,11 +19,17 @@ import path from "node:path";
 import { ALClient } from "../client/index.mjs";
 import { DEFAULTS } from "./bot/loop.mjs";
 import { findMerchant, sellItems } from "./bot/vendor.mjs";
+import { parseAnchor } from "./bot/party.mjs";
 
 const LOCAL_API = "http://127.0.0.1:8090";
 const DEFAULT_EMAIL = "dev@example.test";
 const DEFAULT_PASSWORD = "dev-password-123";
 const DEFAULT_LOOP = new URL("../loops/basic.mjs", import.meta.url).pathname;
+
+function numberOr(value, fallback) {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : fallback;
+}
 
 function parseArgs(argv) {
 	const args = {
@@ -37,6 +44,17 @@ function parseArgs(argv) {
 		loop: process.env.BOT_LOOP || null,
 		vendorAt: process.env.AL_BOT_VENDOR_AT ? Number(process.env.AL_BOT_VENDOR_AT) : null,
 		merchant: null,
+		// Party knobs. The loops read them from config.party; every one is optional, so the runner
+		// stays usable without a party at all.
+		role: process.env.AL_PARTY_ROLE || null,
+		leader: process.env.AL_PARTY_LEADER || null,
+		members: process.env.AL_PARTY_MEMBERS || null,
+		partyMerchant: process.env.AL_PARTY_MERCHANT || null,
+		anchor: process.env.AL_PARTY_ANCHOR || null,
+		sellAt: process.env.AL_PARTY_SELL_AT || null,
+		sendAt: process.env.AL_PARTY_SEND_AT || null,
+		sellAtFill: process.env.AL_PARTY_SELL_AT_FILL || null,
+		healBelow: process.env.AL_PARTY_HEAL_BELOW || null,
 		quiet: false,
 	};
 	for (let i = 0; i < argv.length; i++) {
@@ -54,6 +72,12 @@ function parseArgs(argv) {
 		else if (flag === "--transport") args.transport = next();
 		else if (flag === "--loop" || flag === "-l") args.loop = next();
 		else if (flag === "--vendor-at") args.vendorAt = Number(next());
+		else if (flag === "--party-role") args.role = next();
+		else if (flag === "--party-leader") args.leader = next();
+		else if (flag === "--party-members") args.members = next();
+		else if (flag === "--party-merchant") args.partyMerchant = next();
+		else if (flag === "--party-anchor") args.anchor = next();
+		else if (flag === "--party-sell-at") args.sellAt = next();
 		else if (flag === "--merchant") {
 			const [x, y] = next().split(",").map(Number);
 			args.merchant = { x, y };
@@ -69,7 +93,7 @@ const USAGE = [
 	"usage: node scripts/bot.mjs [options]",
 	"",
 	"  --character, -c <name>    character to drive (default Devmage)",
-	"  --seconds, -s <n>         how long to run (default 300)",
+	"  --seconds, -s <n>         how long to run; 0 or a negative number runs until SIGTERM (default 300)",
 	"  --loop, -l <path>         loop module to run (default loops/basic.mjs, env BOT_LOOP)",
 	"  --api <url>               account API base (default http://127.0.0.1:8090)",
 	"  --address <host:port>     game socket address override (env AL_GAME_ADDRESS); needed when the",
@@ -78,11 +102,26 @@ const USAGE = [
 	"  --transport <json|msgpack>  wire format (default json)",
 	"  --merchant <x,y>          sell here instead of the map merchant",
 	"  --vendor-at <0..1>        sell once the bag is this full (default 0.95)",
+	"  --party-role <role>       label passed to the loop (env AL_PARTY_ROLE)",
+	"  --party-leader <name>     the character that owns the party (env AL_PARTY_LEADER)",
+	"  --party-members <a,b,c>   members the leader invites (env AL_PARTY_MEMBERS)",
+	"  --party-merchant <name>   the merchant that receives and sells loot (env AL_PARTY_MERCHANT)",
+	"  --party-anchor <x,y>      the point the party fights around (env AL_PARTY_ANCHOR)",
+	"  --party-sell-at <x,y>     where the party sells (env AL_PARTY_SELL_AT)",
 	"  --no-say                  do not chat",
 	"  --quiet, -q               only print the summary",
 ].join("\n");
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * How long to run, in milliseconds. Zero and negatives mean "until SIGTERM": that is what the image
+ * sets (AL_BOT_SECONDS=0), and a container that exits on start is never what anyone meant.
+ */
+export function resolveRunWindow(seconds) {
+	const value = Number(seconds);
+	return Number.isFinite(value) && value > 0 ? Math.round(value * 1000) : Infinity;
+}
 
 /** Load and validate a loop module. Exactly one of decide()/run() must be exported. */
 export async function loadLoop(specPath) {
@@ -94,6 +133,24 @@ export async function loadLoop(specPath) {
 		throw new Error("loop " + absolute + " exports neither decide(state) nor run(context) - see loops/README.md");
 	}
 	return { path: absolute, decide, run, meta: module.meta || {} };
+}
+
+/** The party section of the loop config, from env/flags. Absent values stay null. */
+export function partyConfig(args) {
+	const anchor = parseAnchor(args.anchor);
+	const sellAt = parseAnchor(args.sellAt);
+	const members = typeof args.members === "string" && args.members.trim() ? args.members.split(",").map((name) => name.trim()).filter(Boolean) : [];
+	return {
+		role: args.role || null,
+		leader: args.leader || null,
+		members,
+		merchant: args.partyMerchant || null,
+		anchor,
+		sellAt,
+		sendAt: numberOr(args.sendAt, null),
+		sellAtFill: numberOr(args.sellAtFill, null),
+		healBelow: numberOr(args.healBelow, null),
+	};
 }
 
 async function connectWithRetry(client, args, log) {
@@ -145,6 +202,31 @@ async function ensureCharacter(client, name, log) {
 	await client.createCharacter({ name, char: "mage", look: 0 });
 }
 
+export function emptyCounters() {
+	return {
+		attacks: 0,
+		patrols: 0,
+		steps: 0,
+		potions: 0,
+		respawns: 0,
+		says: 0,
+		failures: 0,
+		hits: 0,
+		damage: 0,
+		kills: 0,
+		sold: 0,
+		gold: 0,
+		looted: 0,
+		// chests are the loot piles actually opened (walking over one collects nothing);
+		// sent/received/heals/buffs belong to the party loops.
+		chests: 0,
+		sent: 0,
+		received: 0,
+		heals: 0,
+		buffs: 0,
+	};
+}
+
 async function main() {
 	const args = parseArgs(process.argv.slice(2));
 	if (args.help) {
@@ -168,8 +250,11 @@ async function main() {
 	log("entered " + args.character + " at " + Math.round(entered.x) + "," + Math.round(entered.y) + " in " + entered.map);
 
 	const started = Date.now();
-	const counters = { attacks: 0, patrols: 0, steps: 0, potions: 0, respawns: 0, says: 0, failures: 0, hits: 0, damage: 0, kills: 0, sold: 0, gold: 0, looted: 0 };
-	const config = { sayText: DEFAULTS.sayText, ...(Number.isFinite(args.vendorAt) ? { vendorAt: args.vendorAt } : {}) };
+	const windowMs = resolveRunWindow(args.seconds);
+	const deadline = windowMs === Infinity ? Infinity : started + windowMs;
+	const party = partyConfig(args);
+	const counters = emptyCounters();
+	const config = { sayText: DEFAULTS.sayText, ...(Number.isFinite(args.vendorAt) ? { vendorAt: args.vendorAt } : {}), party };
 
 	client.on("event", (name, data) => {
 		if (name === "hit" && data && String(data.hid).toLowerCase() === args.character.toLowerCase()) {
@@ -186,6 +271,9 @@ async function main() {
 	process.on("SIGINT", onSignal);
 	process.on("SIGTERM", onSignal);
 
+	const shouldStop = () => stopping || Date.now() >= deadline;
+	if (deadline === Infinity) log("running until SIGTERM (seconds=0)");
+
 	try {
 		if (loop.run) {
 			await loop.run({
@@ -195,11 +283,12 @@ async function main() {
 				sleep,
 				config,
 				args,
-				deadline: started + args.seconds * 1000,
-				shouldStop: () => stopping || Date.now() >= started + args.seconds * 1000,
+				party,
+				deadline,
+				shouldStop,
 			});
 		} else {
-			await decideLoop({ client, loop, args, log, counters, config, started, shouldStop: () => stopping || Date.now() >= started + args.seconds * 1000 });
+			await decideLoop({ client, loop, args, log, counters, config, started, shouldStop });
 		}
 	} finally {
 		process.off("SIGINT", onSignal);
@@ -212,9 +301,11 @@ async function main() {
 	const elapsed = Math.round((Date.now() - started) / 1000);
 	console.log(
 		"ran " + elapsed + "s: " + counters.attacks + " attacks (" + counters.hits + " hits, " + Math.round(counters.damage) + " damage, " + counters.kills + " kills), " +
-			counters.looted + " loot piles, " + counters.sold + " sold for " + counters.gold + " gold, " + counters.steps + " steps, " + counters.says + " says, " +
+			counters.chests + " chests, " + counters.sold + " sold for " + counters.gold + " gold, " + counters.steps + " steps, " + counters.says + " says, " +
 			counters.potions + " potions, " + counters.respawns + " respawns, " + counters.failures + " failures",
 	);
+	// Machine readable, so an e2e can assert on counters instead of parsing prose.
+	console.log("summary " + JSON.stringify({ character: args.character, role: party.role, elapsed, counters }));
 	return counters.failures > 0 && counters.attacks + counters.patrols === 0 ? 1 : 0;
 }
 
@@ -299,6 +390,16 @@ async function decideLoop({ client, loop, args, log, counters, config, started, 
 				drops.delete(String(action.drop.id));
 				await client.move({ x: action.drop.x, y: action.drop.y, timeoutMs: 20_000 }).catch(() => {});
 				counters.looted++;
+				// Walking over a chest collects nothing: the server only grants its contents to an
+				// open_chest request (the browser client sends one when you click the pile).
+				const opened = await client.openChest(action.drop.id).catch(() => null);
+				if (opened && opened.failed) {
+					log("loot refused: " + (opened.response || "unknown"));
+					if (opened.response !== "loot_no_space") counters.failures++;
+				} else if (opened) {
+					counters.chests++;
+					log("opened a chest (" + ((opened.items || []).length) + " items, " + (opened.gold || 0) + " gold)");
+				}
 			} else if (action.type === "chase") {
 				const from = { x: client.world.self.x, y: client.world.self.y };
 				if (client.pathfinder.canWalkDirect(client.world.map, from, action.target)) {

@@ -18,6 +18,11 @@ export class World extends EventEmitter {
 		this.drops = new Map();
 		this.bases = new Map(); // id -> last full packet, the base for the next delta
 		this.self = null;
+		// The party roster, as the server last described it: { list: [names], info: { name: {...} } }.
+		// A character only learns the roster from a party_update (on a membership change, and once a
+		// minute for every existing party), never from its own "player" packet - that carries only
+		// the party owner name in self.party.
+		this.party = null;
 		this.map = null;
 		this.in = null;
 		this.x = 0;
@@ -31,6 +36,7 @@ export class World extends EventEmitter {
 		this.npcs.clear();
 		this.drops.clear();
 		this.bases.clear();
+		this.party = null;
 		this.missingDeltaBase = false;
 	}
 
@@ -216,6 +222,21 @@ export class World extends EventEmitter {
 					this.drops.set(data.id, data);
 					this.emit("drop", data);
 				}
+				return true;
+			}
+			case "chest_opened": {
+			// Opened chests are gone from the map, so a pile we already tried must not stay in the list
+			// (opening a deleted chest id gets no answer at all, and the request just times out).
+			if (data && data.id !== undefined) this.drops.delete(data.id);
+			this.emit("chest_opened", data);
+			return true;
+		}
+		case "party_update": {
+				// An empty payload is how the server says "you are not in a party any more" (leave,
+				// kick, disband), so it clears the roster instead of leaving a stale one behind.
+				const list = Array.isArray(data && data.list) ? data.list.filter((name) => typeof name === "string") : [];
+				this.party = list.length ? { list, info: (data && data.party) || {} } : null;
+				this.emit("party_update", this.party);
 				return true;
 			}
 			default:

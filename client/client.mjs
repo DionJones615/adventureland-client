@@ -281,4 +281,13 @@ export class ALClient extends EventEmitter {
 	sendUpdates(options) {
 		return this.actions.sendUpdates(options);
 	}
+	party(options, extra) {
+		return this.actions.party(options, extra);
+	}
+	openChest(id, options) {
+		return this.actions.openChest(id, options);
+	}
+	sendItem(options, extra) {
+		return this.actions.sendItem(options, extra);
+	}
 }
