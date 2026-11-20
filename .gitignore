@@ -1,0 +1,7 @@
+# Game data fetched from adventure.land (npm run fetch-data)
+reference/game-data/
+# Reference artefact fetched for the msgpack differential test (npm run fetch-reference)
+reference/upstream/
+node_modules/
+.e2e-clone/
+*.log

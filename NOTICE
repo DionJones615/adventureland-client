@@ -1,0 +1,26 @@
+adventureland-client
+Copyright (c) 2026 Dion Jones
+
+The MIT licence in LICENSE covers the code in this repository only: the protocol client, the bot
+runner, the loop contract and the tests.
+
+This project talks to Adventure Land (https://adventure.land) and depends on the following, none of
+which is distributed here:
+
+  Adventure Land
+    https://adventure.land
+    The game itself. Game data (data.js) is fetched by npm run fetch-data and is not stored in this
+    repository. The game's own terms apply; the server side of the game (kaansoral/adventureland_mongodb)
+    is used at run time by the game container, not redistributed here.
+
+  ALClient
+    https://github.com/kaansoral/ALClient
+    A community protocol client that this implementation was modelled on and read from. No code was
+    copied; it carries no licence, so nothing from it is vendored here. Credit is given for the
+    reference, not as a licence grant.
+
+  adventureland-container
+    https://github.com/DionJones615/adventureland-container
+    The game stack image the e2e tests pull (MIT for its own code).
+
+Adventure Land is created and maintained by its authors. This project is not affiliated with them.

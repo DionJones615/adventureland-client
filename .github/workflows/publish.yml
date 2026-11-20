@@ -1,0 +1,38 @@
+name: publish
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: image name
+        run: |
+          owner=$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE=ghcr.io/${owner}/adventureland-client" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: build
+        run: docker build -f containers/client.Dockerfile -t "$IMAGE:smoke" .
+
+      - name: log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: tag and push
+        run: |
+          docker tag "$IMAGE:smoke" "$IMAGE:latest"
+          docker tag "$IMAGE:smoke" "$IMAGE:sha-${SHORT_SHA}"
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:sha-${SHORT_SHA}"
+          echo "pushed $IMAGE:latest and $IMAGE:sha-${SHORT_SHA}"

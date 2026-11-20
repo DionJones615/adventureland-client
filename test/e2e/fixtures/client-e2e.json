@@ -1,0 +1,72 @@
+{
+  "account": {
+    "email": "dev@example.test",
+    "password": "dev-password-123"
+  },
+  "characters": [
+    {
+      "name": "ClientMage",
+      "type": "mage",
+      "level": 30,
+      "map": "main",
+      "x": -120,
+      "y": 760,
+      "gold": 1234,
+      "hp": 350,
+      "mp": 350,
+      "skills": {
+        "fireball": {
+          "level": 20
+        }
+      },
+      "inventory": [
+        {
+          "slot": 0,
+          "name": "hpot1",
+          "q": 100
+        },
+        {
+          "slot": 1,
+          "name": "mpot1",
+          "q": 50
+        },
+        {
+          "slot": 2,
+          "name": "gslime",
+          "q": 7
+        }
+      ],
+      "equipment": {
+        "mainhand": {
+          "name": "staff",
+          "level": 2
+        },
+        "helmet": {
+          "name": "helmet"
+        }
+      }
+    },
+    {
+      "name": "ClientRogue",
+      "type": "rogue",
+      "level": 12,
+      "map": "main",
+      "x": 140,
+      "y": 780,
+      "gold": 75,
+      "inventory": [
+        {
+          "slot": 0,
+          "name": "hpot0",
+          "q": 20
+        }
+      ],
+      "equipment": {
+        "mainhand": {
+          "name": "blade",
+          "level": 1
+        }
+      }
+    }
+  ]
+}

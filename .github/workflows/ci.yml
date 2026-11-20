@@ -1,0 +1,120 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: game data (pathfinder tests)
+        run: npm run fetch-data
+      - name: upstream parser (msgpack differential test)
+        run: npm run fetch-reference
+      - run: npm run test:unit
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run fetch-data
+
+      - name: log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Pulls the published game image - this repo tests a client against a released server, it never
+      # builds the stack. AL_IMAGE can pin a :sha-<short> tag for reproducibility.
+      - name: start the game stack
+        run: npm run e2e:up
+
+      - name: e2e suite
+        run: npm run test:e2e
+
+      - name: bot smoke (default loop)
+        run: |
+          set -euo pipefail
+          node scripts/bot.mjs --api http://127.0.0.1:18090 --address 127.0.0.1:17192 \
+            --character ClientRogue --seconds 25 | tee bot.log
+          grep -Eq '[0-9]+ hits' bot.log
+          grep -Eq '[1-9][0-9]* attacks' bot.log
+
+      - name: game logs on failure
+        if: failure()
+        run: npm run e2e:logs || true
+
+      - name: stop the game stack
+        if: always()
+        run: npm run e2e:down
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: start the game stack
+        run: npm run e2e:up
+
+      - name: build the client image
+        run: docker build -f containers/client.Dockerfile -t localhost/al-client .
+
+      # The point of this job: the loop that runs is the MOUNTED file, not one baked into the image.
+      - name: mount a loop and run it
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e AL_API=http://127.0.0.1:18090 \
+            -e AL_GAME_ADDRESS=127.0.0.1:17192 \
+            -e AL_BOT_CHARACTER=ClientMage -e AL_BOT_SECONDS=20 \
+            -v "$PWD/test/loops:/loops:ro" \
+            -e BOT_LOOP=/loops/probe.mjs \
+            localhost/al-client | tee probe.log
+          grep -q 'loop: /loops/probe.mjs' probe.log
+          grep -q 'PROBE_LOOP_STARTED' probe.log
+          grep -q 'PROBE_LOOP_TICKS=3' probe.log
+
+      - name: default loop still works
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e AL_API=http://127.0.0.1:18090 \
+            -e AL_GAME_ADDRESS=127.0.0.1:17192 \
+            -e AL_BOT_CHARACTER=ClientRogue -e AL_BOT_SECONDS=20 \
+            localhost/al-client | tee default.log
+          grep -q 'loop: /app/loops/basic.mjs' default.log
+
+      - name: game logs on failure
+        if: failure()
+        run: npm run e2e:logs || true
+
+      - name: stop the game stack
+        if: always()
+        run: npm run e2e:down
