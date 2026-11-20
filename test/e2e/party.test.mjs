@@ -77,6 +77,22 @@ async function probe() {
 	}
 }
 
+/**
+ * Log an account in, retrying the API hiccups a freshly booted stack answers with ("exception",
+ * "email_not_found" before the seeder lands). Four sessions of one account in a row is exactly the
+ * load that triggers it, and the bot runner retries for the same reason.
+ */
+async function login(client, { attempts = 6, delayMs = 3000 } = {}) {
+	for (let attempt = 1; ; attempt++) {
+		try {
+			return await client.login({ email: EMAIL, password: PASSWORD, onlyLogin: true });
+		} catch (error) {
+			if (attempt >= attempts) throw error;
+			await sleep(delayMs);
+		}
+	}
+}
+
 const unavailable = await probe();
 const SKIP = unavailable ? { skip: "no game stack on " + API + " - run 'npm run e2e:up' first (" + unavailable + ")" } : false;
 
@@ -91,7 +107,7 @@ test("three characters and a merchant of one account fight, heal and trade as on
 
 	try {
 		const probeClient = new ALClient({ apiBaseUrl: API });
-		await probeClient.login({ email: EMAIL, password: PASSWORD, onlyLogin: true });
+		await login(probeClient);
 		const owned = ((await probeClient.characters()) || []).map((entry) => entry.name);
 		for (const name of Object.keys(ROLES)) {
 			assert.ok(owned.some((entry) => entry.toLowerCase() === name.toLowerCase()), name + " is seeded on " + EMAIL + " (have " + owned.join(",") + ")");
@@ -101,7 +117,7 @@ test("three characters and a merchant of one account fight, heal and trade as on
 			const client = new ALClient({ apiBaseUrl: API });
 			const dropped = [];
 			client.on("disconnected", (reason) => dropped.push(reason || "unknown"));
-			await client.login({ email: EMAIL, password: PASSWORD, onlyLogin: true });
+			await login(client);
 			await client.connect({ transport: config.transport, ...CONNECT });
 			await client.enter(name);
 			const loop = await loadLoop(new URL(config.loop, import.meta.url).pathname);
