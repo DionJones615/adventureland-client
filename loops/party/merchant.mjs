@@ -76,7 +76,9 @@ export function run(ctx) {
 				}
 				// Liquidate: the bag is full, or something sellable has been sitting here long enough
 				// that the trip is worth it (a merchant with one item should still sell it).
-				const holdable = sellableItems(self, { potionStock: settings.potionStock });
+				// With selling disabled (the live profile) nothing is holdable, so the merchant never walks
+				// anywhere and never sends a sell: it just receives and keeps the bag.
+				const holdable = settings.sellEnabled === false ? [] : sellableItems(self, { potionStock: settings.potionStock, keep: settings.keepSell });
 				if (holdable.length && !pendingSince) pendingSince = Date.now();
 				const dueForVolume = inventoryFill(self) >= settings.sellAtFill;
 				const dueForLoot = pendingSince > 0 && Date.now() - pendingSince >= SALE_WINDOW_MS;

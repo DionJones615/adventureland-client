@@ -37,6 +37,12 @@ export function partySettings({ party = null, args = null } = {}) {
 		focusChase: PARTY_DEFAULTS.focusChase,
 		buffRange: PARTY_DEFAULTS.buffRange,
 		potionStock: DEFAULTS.potionStock,
+		// Safety gates. Defaults reproduce the local behaviour; a real account turns them on.
+		targets: Array.isArray(raw.targets) ? raw.targets.slice() : [],
+		sendEnabled: raw.sendEnabled !== false,
+		sellEnabled: raw.sellEnabled !== false,
+		ownLoot: raw.ownLoot === true,
+		keepSell: Array.isArray(raw.keepSell) ? raw.keepSell.slice() : [],
 	};
 }
 
@@ -70,7 +76,11 @@ export function merchantPoint(client, settings) {
 export async function sellHere(client, { counters, log = () => {}, settings }) {
 	const self = client.world.self;
 	if (!self) return { sold: 0, gold: 0, left: [] };
-	const items = sellableItems(self, { potionStock: settings ? settings.potionStock : DEFAULTS.potionStock });
+	if (settings && settings.sellEnabled === false) return { sold: 0, gold: 0, left: [] };
+	const items = sellableItems(self, {
+		potionStock: settings ? settings.potionStock : DEFAULTS.potionStock,
+		keep: settings ? settings.keepSell : [],
+	});
 	if (!items.length) return { sold: 0, gold: 0, left: [] };
 	const result = await sellItems(client, items, log);
 	if (counters) {
@@ -126,9 +136,17 @@ export function lootForMerchant(self, settings) {
 }
 
 /** Walk to and open the nearest loot pile. Returns true when something was opened. */
-export async function openNearestChest(client, { counters, log = () => {}, range = PARTY_DEFAULTS.chestRange }) {
+export async function openNearestChest(client, { counters, log = () => {}, range = PARTY_DEFAULTS.chestRange, ownLoot = false, state = null }) {
 	const self = client.world.self;
 	if (!self) return false;
+	// On a shared map a loot pile may belong to whoever killed the monster. The server does not say
+	// whose it is, so the only honest rule is "we just killed something": a pile is ours to open only
+	// within a couple of seconds of one of our own kills.
+	if (ownLoot) {
+		const window = PARTY_DEFAULTS.ownLootWindowMs;
+		const recent = state && Array.isArray(state.killTimes) ? state.killTimes.some((at) => Date.now() - at <= window) : false;
+		if (!recent) return false;
+	}
 	const chest = chestsNearby({ drops: [...client.world.drops.values()], self, range })[0];
 	if (!chest) return false;
 	// Whatever happens next, this pile is no longer a candidate: a chest someone else opened gets no
@@ -213,7 +231,8 @@ export async function combatTick(client, { counters, log = () => {}, settings, s
 	const self = client.world.self;
 	if (!self || !settings.anchor) return "wait";
 	const monsters = [...client.world.monsters.values()];
-	const groupTarget = focus === undefined ? focusTarget({ monsters, anchor: settings.anchor, self, avoid: state.avoid, maxDistance: settings.focusChase }) : focus;
+	const groupTarget =
+		focus === undefined ? focusTarget({ monsters, anchor: settings.anchor, self, avoid: state.avoid, maxDistance: settings.focusChase, allowed: settings.targets }) : focus;
 	const range = reachOf(self);
 	// Something is already breathing on us: hit that instead of walking past it to the group's pick.
 	const target = inReach(monsters, self, range, state.avoid) || groupTarget;
@@ -281,6 +300,11 @@ export function noteKills(client, counters, state) {
 		state.attacked.delete(id);
 		if (state.culled.has(id)) continue;
 		counters.kills++;
+		// Remembered for the own-loot rule: a pile that appears right after this is ours to open.
+		if (Array.isArray(state.killTimes)) {
+			state.killTimes.push(Date.now());
+			if (state.killTimes.length > 50) state.killTimes.shift();
+		}
 	}
 }
 
@@ -311,6 +335,7 @@ export function newState() {
 		attacked: new Set(),
 		culled: new Set(),
 		focusId: null,
+		killTimes: [],
 	};
 }
 
@@ -346,7 +371,7 @@ export async function runCombatRole(ctx, { role = "fighter" } = {}) {
 				continue;
 			}
 			// The bag is filling: walk to the merchant and hand it over; if it cannot take it, sell it.
-			const entries = lootForMerchant(self, settings);
+			const entries = settings.sendEnabled ? lootForMerchant(self, settings) : [];
 			if (entries.length && inventoryFill(self) >= settings.sendAt && settings.merchant) {
 				const point = merchantPoint(client, settings);
 				await walkToPoint(client, point, { within: 360, log: say });
@@ -360,13 +385,13 @@ export async function runCombatRole(ctx, { role = "fighter" } = {}) {
 				await sleep(200);
 				continue;
 			}
-			const focus = focusTarget({ monsters: [...client.world.monsters.values()], anchor: settings.anchor, self, avoid: state.avoid, maxDistance: settings.focusChase });
+			const focus = focusTarget({ monsters: [...client.world.monsters.values()], anchor: settings.anchor, self, avoid: state.avoid, maxDistance: settings.focusChase, allowed: settings.targets });
 			// Loot, but never let it replace the fight: a pile under our feet is worth a step, and with
 			// nothing to hit the whole ring is fair game. Chasing the group's target always comes first,
 			// otherwise a melee character spends the session sweeping chests.
 			if (settings.anchor) {
 				const lootRange = focus ? 60 : settings.chestRange;
-				if (await openNearestChest(client, { counters, log: say, range: lootRange })) {
+				if (await openNearestChest(client, { counters, log: say, range: lootRange, ownLoot: settings.ownLoot, state })) {
 					await sleep(120);
 					continue;
 				}

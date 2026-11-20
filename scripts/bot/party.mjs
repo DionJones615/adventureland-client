@@ -30,6 +30,10 @@ export const PARTY_DEFAULTS = {
 	focusChase: 420,
 	/** Merchant buff range (G.skills.mluck.range = 320). */
 	buffRange: 320,
+	/** Monster types the party may attack. Empty means any. (Live runs set this.) */
+	targets: [],
+	/** Only open a loot pile this long after one of our own kills (0 disables the check). */
+	ownLootWindowMs: 2500,
 };
 
 const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
@@ -71,15 +75,22 @@ export function partyComplete(client, wanted) {
  * distance to the anchor in 25-unit buckets (positions are shared and stable, hp is not), then lowest
  * hp, then id. Rounding the distance is what keeps the group from chasing jitter.
  */
-export function focusTarget({ monsters = [], anchor, self, avoid, maxDistance = PARTY_DEFAULTS.focusChase, maxHpFraction = 1 } = {}) {
+export function focusTarget({ monsters = [], anchor, self, avoid, maxDistance = PARTY_DEFAULTS.focusChase, maxHpFraction = 1, allowed = null } = {}) {
 	if (!anchor) return null;
 	const blocked = avoid instanceof Set ? avoid : new Set(avoid || []);
+	// An allowlist is how a run on the live game refuses to touch a monster nobody vetted. Empty or
+	// absent keeps the old behaviour (everything in range is fair game).
+	const allowedSet = allowed && allowed.length ? new Set(allowed.map((name) => String(name).toLowerCase())) : null;
 	const candidates = [];
 	for (const monster of monsters || []) {
 		if (!monster || monster.id === undefined) continue;
 		if (monster.dead || monster.rip) continue;
 		if (typeof monster.x !== "number" || typeof monster.y !== "number") continue;
 		if (blocked.has(String(monster.id))) continue;
+		if (allowedSet) {
+			const kind = String(monster.type || monster.monster || monster.id).toLowerCase();
+			if (!allowedSet.has(kind)) continue;
+		}
 		if (self && same(monster.id, self.id)) continue;
 		const fromAnchor = Math.hypot(monster.x - anchor.x, monster.y - anchor.y);
 		if (fromAnchor > maxDistance) continue;

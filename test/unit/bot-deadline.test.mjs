@@ -45,10 +45,31 @@ test("party settings come from env-style args without inventing values", () => {
 		sendAt: null,
 		sellAtFill: null,
 		healBelow: null,
+		targets: [],
+		sendEnabled: true,
+		sellEnabled: true,
+		ownLoot: false,
+		keepSell: [],
 	});
-	// A solo bot that never heard of a party still starts.
+	// A solo bot that never heard of a party still starts, and the safety gates keep their local
+	// defaults: everything in range, sending and selling on, every pile fair game.
 	const solo = partyConfig({});
-	assert.deepEqual(solo, { role: null, leader: null, members: [], merchant: null, anchor: null, sellAt: null, sendAt: null, sellAtFill: null, healBelow: null });
+	assert.deepEqual(solo, {
+		role: null,
+		leader: null,
+		members: [],
+		merchant: null,
+		anchor: null,
+		sellAt: null,
+		sendAt: null,
+		sellAtFill: null,
+		healBelow: null,
+		targets: [],
+		sendEnabled: true,
+		sellEnabled: true,
+		ownLoot: false,
+		keepSell: [],
+	});
 });
 
 test("a bad anchor is rejected at startup rather than at the merchant", () => {

@@ -118,19 +118,36 @@ export function inventoryFull(self, threshold = 0.95) {
 	return inventoryFill(self) >= threshold;
 }
 
+/** Does an item name match one of the keep patterns ("*" is a wildcard)? */
+export function keepItem(name, patterns = []) {
+	const value = String(name || "").toLowerCase();
+	for (const pattern of patterns || []) {
+		const text = String(pattern || "").trim().toLowerCase();
+		if (!text) continue;
+		const rx = new RegExp("^" + text.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$");
+		if (rx.test(value)) return true;
+	}
+	return false;
+}
+
 /**
  * What is worth selling. Loot and surplus stock go; equipped gear, the placeholder slot and the
  * first `potionStock` of each potion stay (a bot that sells its last potion is a dead bot). The
  * game sells a slot at a time, so each entry carries the slot number the server expects.
+ *
+ * `keep` is the safety valve for a real account: a name or pattern that must never leave the bag,
+ * whatever the loop thinks of it. The live profile passes its whole inventory through it.
  */
-export function sellableItems(self, { potionStock = DEFAULTS.potionStock } = {}) {
+export function sellableItems(self, { potionStock = DEFAULTS.potionStock, keep = [] } = {}) {
 	const items = (self && self.items) || [];
 	const equipped = Object.values((self && self.slots) || {}).map((item) => item && item.name);
 	const out = [];
 	items.forEach((item, num) => {
 		if (!item || typeof item.name !== "string") return;
 		if (item.name === "placeholder") return;
+		if (item.l || item.b) return; // locked/blocked: the server refuses these anyway
 		if (equipped.includes(item.name)) return;
+		if (keepItem(item.name, keep)) return;
 		if (/^[hm]pot[0-9]+$/.test(item.name)) {
 			const surplus = (item.q || 1) - potionStock;
 			if (surplus > 0) out.push({ num, name: item.name, quantity: surplus });

@@ -95,7 +95,7 @@ export function run(ctx) {
 					await sleep(200);
 					continue;
 				}
-				const focus = focusTarget({ monsters: [...client.world.monsters.values()], anchor: settings.anchor, self, avoid: state.avoid, maxDistance: settings.focusChase });
+				const focus = focusTarget({ monsters: [...client.world.monsters.values()], anchor: settings.anchor, self, avoid: state.avoid, maxDistance: settings.focusChase, allowed: settings.targets });
 				const action = await combatTick(client, { counters, log: say, settings, state, focus });
 				await sleep(action === "cooldown" ? 120 : DEFAULTS.tickMs);
 			} catch (error) {

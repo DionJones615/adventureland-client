@@ -71,6 +71,32 @@ The party is built out of four decisions the game actually supports (all sourced
 
 Roles, logs and failure modes are in [examples/party/README.md](examples/party/README.md).
 
+## The same party on a real server, watched locally
+
+The party does not have to stay in a throwaway stack. [examples/live-party/](examples/live-party/) runs the four
+characters on a real server while you watch them in the **local** game client's watch view - its own renderer,
+camera follow and HUD panels, fed with live entity data instead of the local server's simulation.
+
+```sh
+npm run live:relay                                              # merge + SSE, 127.0.0.1:7899
+npm run live:party -- --env examples/live-party/live.env --live --seconds 300
+open 'http://127.0.0.1:8090/?watch=Dion6&relay=1'               # the local watch view
+```
+
+| piece | file | why |
+| --- | --- | --- |
+| one login, four sockets | `scripts/live/party.mjs` | four logins look like four sessions; the party shares one |
+| publisher | `scripts/bot/publish.mjs` | each client already sees the fight; it posts its world instead of opening another socket to the game |
+| relay | `scripts/live/relay.mjs` | merges the four views by entity id and serves them over SSE, no dependencies |
+| gates | `scripts/bot/loop.mjs`, `loops/party/lib.mjs` | target allowlist, own-loot-only chests, keep-on-sell patterns, send/sell switches |
+| hold role | `loops/party/hold.mjs` | joins the party and stands still - the first run on a real account |
+
+The page is the local watch view from [adventureland-container](https://github.com/DionJones615/adventureland-container)
+with one extra source (`?relay=1`), so nothing about the renderer is reimplemented here. Read
+[examples/live-party/README.md](examples/live-party/README.md) before pointing it at an account you care about:
+the live profile never sells, never gives items away, attacks only allowlisted monsters, and stops after a
+bounded run.
+
 ## Env vars of the image
 
 | variable | meaning |

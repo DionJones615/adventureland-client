@@ -18,6 +18,8 @@
     "e2e:logs": "node scripts/e2e/container.mjs logs",
     "bot": "node scripts/bot.mjs",
     "watch": "node scripts/watch.mjs",
+    "live:relay": "node scripts/live/relay.mjs",
+    "live:party": "node scripts/live/party.mjs",
     "fetch-data": "node scripts/fetch_game_data.mjs",
     "fetch-reference": "node scripts/fetch_reference.mjs"
   },

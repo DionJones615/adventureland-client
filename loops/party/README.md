@@ -9,6 +9,7 @@ Four loops, four characters, one party. Each file runs under the same runner as 
 | `fighter.mjs` | second damage dealer | the same body as the leader, but it asks to join instead of inviting |
 | `priest.mjs` | healer | `partyheal` when the group is hurt, `heal` for one target, mana upkeep, damage otherwise |
 | `merchant.mjs` | trader | casts Merchant's Luck on the fighters, receives their loot, sells it at a merchant |
+| `hold.mjs` | none | joins the party and stands still: no movement, no attacks, no loot, no trade - the safe first run on a real server |
 
 The full container example is [`examples/party/`](../../examples/party/); run it with
 `docker compose -f examples/party/docker-compose.yml up -d`.
@@ -29,6 +30,19 @@ decision that is easy to get wrong:
    arrays at all, so the game image injects a test sell point (see the
    [container](https://github.com/DionJones615/adventureland-container)); the loops are told where it
    is by `AL_PARTY_SELL_AT`.
+
+## Safety gates for a real account
+
+The party was written against a throwaway stack; every loop therefore takes four switches that are off
+(or open) locally and on in [../../examples/live-party/](../../examples/live-party/). They all live in
+`partySettings` (`loops/party/lib.mjs`) and come from the runner's party config:
+
+| switch | env | effect |
+| --- | --- | --- |
+| `targets` | `AL_PARTY_TARGETS` | `focusTarget` refuses any monster whose type is not listed |
+| `ownLoot` | `AL_PARTY_OWN_LOOT=1` | a loot pile is opened only within 2.5 s of one of our own kills |
+| `sendEnabled` | `AL_PARTY_SEND=off` | fighters never hand their bag to the merchant |
+| `sellEnabled` + `keepSell` | `AL_PARTY_SELL=off`, `AL_PARTY_KEEP` | nothing is sold, or only what is not matched by a keep pattern |
 
 ## Focus fire without a coordinator
 
