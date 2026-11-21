@@ -107,7 +107,7 @@ export function buildPlan({ args = {}, env = {} } = {}) {
 		keepSell: pick(args, env, "keepSell", "AL_PARTY_KEEP", ""),
 		sendEnabled: !(off(pick(args, env, "send", "AL_PARTY_SEND", "on")) || args.sendEnabled === false),
 		sellEnabled: !(off(pick(args, env, "sell", "AL_PARTY_SELL", "on")) || args.sellEnabled === false),
-		ownLoot: on(pick(args, env, "ownLoot", "AL_PARTY_OWN_LOOT", "off")),
+		ownLoot: args.ownLoot === true || on(pick(args, env, "ownLoot", "AL_PARTY_OWN_LOOT", "off")),
 		// A respawn count, not a timer: a party that keeps dying is a problem, not a run.
 		maxDeaths: Number(pick(args, env, "maxDeaths", "AL_PARTY_MAX_DEATHS", 5)),
 		seconds: Number(pick(args, env, "seconds", "AL_PARTY_SECONDS", 0)),
@@ -144,6 +144,7 @@ function parseArgs(argv) {
 		else if (flag === "--transport") args.transport = next();
 		else if (flag === "--no-send") args.sendEnabled = false;
 		else if (flag === "--no-sell") args.sellEnabled = false;
+		else if (flag === "--own-loot") args.ownLoot = true;
 		else if (flag === "--help" || flag === "-h") args.help = true;
 		else throw new Error("unknown flag: " + flag);
 	}
@@ -165,6 +166,7 @@ const USAGE = [
 	"  --keep <a,b>       never sell these item names/patterns",
 	"  --no-send          never hand loot to the merchant",
 	"  --no-sell          never sell anything",
+	"  --own-loot         only open loot piles right after one of our own kills",
 	"  --publish <url>    post every client's world to the local relay",
 	"  --seconds <n>      run window; 0 runs until SIGTERM (default 0)",
 	"  --max-deaths <n>   stop the whole party after this many respawns (default 5)",
