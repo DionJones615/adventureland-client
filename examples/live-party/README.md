@@ -46,6 +46,11 @@ open 'http://127.0.0.1:8090/?watch=Dion6&relay=1'
 The page follows the character named in `watch=`; the rest of the party is drawn around it, and the
 roster panel lists all four with hp, mp, gold, bag fill and counters.
 
+The panel's header has a **partywatch** chip: it frames the whole party - the camera centres on their
+bounding box and the zoom pulls back until everyone fits, with the members' names drawn over the map.
+Clicking any character row follows that character instead (normal zoom, stream re-opened on them);
+clicking the chip again goes back to the group.
+
 ## Rehearse locally first
 
 The exact same launcher and relay work against a throwaway stack, which is the way to learn the
