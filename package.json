@@ -20,6 +20,8 @@
     "watch": "node scripts/watch.mjs",
     "live:relay": "node scripts/live/relay.mjs",
     "live:party": "node scripts/live/party.mjs",
+    "live:service": "node scripts/live/service.mjs",
+    "live:status": "node scripts/live/service.mjs --status",
     "fetch-data": "node scripts/fetch_game_data.mjs",
     "fetch-reference": "node scripts/fetch_reference.mjs"
   },

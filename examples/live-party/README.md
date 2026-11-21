@@ -100,7 +100,54 @@ Turn one of them on only after a live probe explains the answer: `AL_PARTY_SELL=
    repository, or one restart of the stack) and `/?watch=<name>&relay=1` renders a local character
    first.
 
+## Running it 24/7
+
+A bounded run stops on its own; keeping the party up is a different contract, so it is a supervised
+service rather than a long `--seconds`:
+
+```sh
+node scripts/live/service.mjs --env examples/live-party/live.env --live   # supervise by hand
+node scripts/live/service.mjs --status                                    # child, restarts, relay health
+```
+
+The supervisor starts the relay if it is not answering, runs the party as a child with **no time limit
+and no death cap** (`--seconds 0 --max-deaths -1`), and replaces the child when it exits or when the
+relay has not seen all four characters publish for two minutes. Restarts back off 5s → 15s → 60s →
+300s, and the log rotates at 5 MB (three copies) under `~/.local/state/adventureland-party/`.
+
+The systemd unit in this directory is the way to survive logout and reboots:
+
+```sh
+cp examples/live-party/adventureland-party.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now adventureland-party.service
+systemctl --user status adventureland-party.service
+journalctl --user -u adventureland-party.service -f
+```
+
+Credentials come from `EnvironmentFile=%h/projects/adventure.land/.env` (the unit), not from the party
+profile: `live.env` holds the gates and is safe to commit. To stop it:
+
+```sh
+systemctl --user disable --now adventureland-party.service   # party exits, characters log off
+```
+
+### Before you leave it running
+
+The game states its own rule for accounts that run unattended, in its documentation:
+
+> Accounts that never interact with the game yet operate 24/7 will be temporarily banned unless their
+> merchants are social and active or the owner interacts with other players on Discord. It's enough to
+> interact once every week on average. This is an anti-leech/multi-account rule, however the game is
+> more fun for everyone this way too.
+
+That is a rule about **you**, not about the code: a supervised party running for days while nobody
+plays is exactly the case it names. The supervisor keeps the process alive; it cannot keep the account
+in good standing. Sessions where you are present, and an interaction with the game or its Discord every
+so often, are what the rule asks for.
+
 ## Stopping
+
 
 `Ctrl-C` in the launcher sets `shouldStop` on every loop, stops the publishers and disconnects the
 four sockets: the characters go offline. Nothing on the account is mutated by the default gates, so

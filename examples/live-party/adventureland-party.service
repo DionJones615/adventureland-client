@@ -1,0 +1,19 @@
+[Unit]
+Description=Adventure Land party (supervised, live)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/adventureland-client
+# Credentials come from the account file; the party profile holds the gates.
+EnvironmentFile=%h/projects/adventure.land/.env
+ExecStart=/var/home/dion/.bun/bin/node %h/projects/adventureland-client/scripts/live/service.mjs --env %h/projects/adventureland-client/examples/live-party/live.env --live
+Restart=always
+RestartSec=20
+KillMode=mixed
+TimeoutStopSec=40
+Nice=10
+
+[Install]
+WantedBy=default.target

@@ -292,9 +292,11 @@ export async function runParty({ plan, log = (line) => console.log(line), loopPa
 		}
 		if (!jobs.length) throw new Error("no character started");
 		// A party that keeps dying is a problem, not a run: watch the respawn counts while the loops run.
+		// A negative --max-deaths means "never stop for a death": a supervised 24/7 run expects to die
+		// now and then and wants the loop to respawn, not the process to exit.
 		const watchdog = setInterval(() => {
 			const deaths = jobs.reduce((sum, job) => sum + (job.counters.respawns || 0), 0);
-			if (deaths > Math.max(0, plan.maxDeaths)) {
+			if (plan.maxDeaths >= 0 && deaths > Math.max(0, plan.maxDeaths)) {
 				log("[party] " + deaths + " respawns, stopping (--max-deaths " + plan.maxDeaths + ")");
 				stop();
 			}
