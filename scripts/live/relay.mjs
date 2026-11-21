@@ -40,6 +40,9 @@ function bagFill(self) {
  * The union is sound because every character is on the same map of the same server: world
  * coordinates are absolute, so four half-views of one fight compose into one picture. Each client
  * omits itself from its own player list, which is why every source's self entity is added back.
+ *
+ * The output order is stable (sources and roster sorted by name) even though the input is ordered by
+ * arrival time; the "self" selection still prefers the freshest publisher when no name is watched.
  */
 export function mergeSources(sources, { watch = null, staleMs = RELAY_DEFAULTS.staleMs, now = Date.now(), events = [] } = {}) {
 	const entries = (sources instanceof Map ? [...sources.entries()] : Object.entries(sources || {}))
@@ -113,7 +116,9 @@ export function mergeSources(sources, { watch = null, staleMs = RELAY_DEFAULTS.s
 	frame.entities.monsters = [...monsters.values()];
 	frame.entities.npcs = [...npcs.values()];
 	frame.drops = [...drops.values()];
-	frame.party = [...roster.values()];
+	// Order must not depend on who published last: a viewer that re-sorts every frame cannot be read.
+	frame.sources.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+	frame.party = [...roster.values()].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 	return frame;
 }
 
@@ -189,7 +194,7 @@ export function startRelay({ host = RELAY_DEFAULTS.host, port = RELAY_DEFAULTS.p
 			return sendJson(res, 200, {
 				ok: true,
 				viewers: viewers.size,
-				sources: [...sources.entries()].map(([name, entry]) => {
+				sources: [...sources.entries()].sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase())).map(([name, entry]) => {
 					// A source stays in the map after it stops publishing (a bot that exited); the merge drops
 					// it, so say so here instead of leaving a viewer wondering why it is not on screen.
 					const ageMs = Date.now() - entry.at;

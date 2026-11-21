@@ -67,6 +67,33 @@ test("the watch parameter chooses the camera, and falls back to the newest publi
 	assert.equal(mergeSources(new Map(), { now }).self, null);
 });
 
+test("the source order is stable across frames, so a panel cannot reshuffle", () => {
+	// The relay merges by publish time; a viewer that draws in arrival order would swap rows on every
+	// publish. Sources and the roster are sorted by name instead.
+	const now = Date.now();
+	const a = mergeSources(
+		new Map([
+			["Paion", source("Paion", now - 300)],
+			["Dion6", source("Dion6", now)],
+			["Maion", source("Maion", now - 900)],
+		]),
+		{ now },
+	);
+	const b = mergeSources(
+		new Map([
+			["Dion6", source("Dion6", now - 500)],
+			["Maion", source("Maion", now)],
+			["Paion", source("Paion", now - 100)],
+		]),
+		{ now },
+	);
+	assert.deepEqual(a.sources.map((entry) => entry.name), ["Dion6", "Maion", "Paion"]);
+	assert.deepEqual(b.sources.map((entry) => entry.name), ["Dion6", "Maion", "Paion"]);
+	assert.deepEqual(a.party, ["Dion6", "Maion", "Paion"]);
+	assert.equal(a.self.id, "Dion6", "the freshest publisher is still the default camera");
+	assert.equal(b.self.id, "Maion");
+});
+
 test("bagFill and age travel with each source summary", () => {
 	const now = Date.now();
 	const items = [{ name: "a" }, null, { name: "b" }];
