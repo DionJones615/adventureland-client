@@ -47,6 +47,16 @@ test("pathfinding across the main map stays responsive", SKIP, () => {
 	assert.ok(elapsed < 5000, "took " + elapsed + "ms");
 });
 
+test("the search gives up on time, so a hopeless target cannot stall the process", SKIP, () => {
+	// The party runs several sockets on this event loop: a path search that expands for seconds
+	// makes every socket miss its heartbeat. A one-millisecond budget must bail out immediately.
+	const started = Date.now();
+	const path = pf.path("main", { x: -87, y: 673 }, { x: 2400, y: 1900 }, { maxMs: 1, maxNodes: 500_000 });
+	const elapsed = Date.now() - started;
+	assert.equal(path, null);
+	assert.ok(elapsed < 1500, "took " + elapsed + "ms");
+});
+
 test("an unreachable target returns null instead of an invalid route", SKIP, () => {
 	// Far outside the map bounds: the lattice is clamped, so there is no route to hand back.
 	const path = pf.path("main", { x: -87, y: 673 }, { x: 90000, y: 90000 }, { maxNodes: 3000 });

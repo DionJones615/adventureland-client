@@ -8,11 +8,14 @@
 const EPS = 0.01;
 
 export class Pathfinder {
-	constructor(G, { step = 10, radius = 8, maxNodes = 40_000 } = {}) {
+	constructor(G, { step = 10, radius = 8, maxNodes = 12_000, maxMs = 600 } = {}) {
 		this.G = G;
 		this.step = step;
 		this.radius = radius;
 		this.maxNodes = maxNodes;
+		// Wall-clock budget: a hopeless target (a far corner behind water) would otherwise expand
+		// tens of thousands of nodes on the same event loop that keeps every socket alive.
+		this.maxMs = maxMs;
 		this.geometry = new Map();
 	}
 
@@ -95,7 +98,8 @@ export class Pathfinder {
 	 * A* over the collision-free lattice.
 	 * @returns {{x: number, y: number}[] | null} points from (excluding) start to target
 	 */
-	path(map, from, to, { maxNodes = this.maxNodes } = {}) {
+	path(map, from, to, { maxNodes = this.maxNodes, maxMs = this.maxMs } = {}) {
+		const startedAt = Date.now();
 		const start = { x: this._snap(from.x), y: this._snap(from.y) };
 		let goal = { x: this._snap(to.x), y: this._snap(to.y) };
 		if (!this.canWalk(map, from, start)) {
@@ -126,6 +130,7 @@ export class Pathfinder {
 			if (closed.has(nodeKey)) continue;
 			closed.add(nodeKey);
 			if (++expanded > maxNodes) return null;
+			if ((expanded & 63) === 0 && Date.now() - startedAt > maxMs) return null;
 			if (node.x === goal.x && node.y === goal.y) {
 				const points = [];
 				for (let cursor = node; cursor && cursor.parent; cursor = cursor.parent) points.push({ x: cursor.x, y: cursor.y });
