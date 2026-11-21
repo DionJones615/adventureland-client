@@ -78,10 +78,13 @@ export function run(ctx) {
 				// that the trip is worth it (a merchant with one item should still sell it).
 				// With selling disabled (the live profile) nothing is holdable, so the merchant never walks
 				// anywhere and never sends a sell: it just receives and keeps the bag.
-				const holdable = settings.sellEnabled === false ? [] : sellableItems(self, { potionStock: settings.potionStock, keep: settings.keepSell });
+				const selling = settings.sellEnabled !== false;
+				const holdable = selling ? sellableItems(self, { potionStock: settings.potionStock, keep: settings.keepSell }) : [];
 				if (holdable.length && !pendingSince) pendingSince = Date.now();
-				const dueForVolume = inventoryFill(self) >= settings.sellAtFill;
-				const dueForLoot = pendingSince > 0 && Date.now() - pendingSince >= SALE_WINDOW_MS;
+				// Both triggers need selling switched on: with it off the bag being full is not a reason
+				// to walk to a merchant (the trip is a mutation with nowhere to end).
+				const dueForVolume = selling && inventoryFill(self) >= settings.sellAtFill;
+				const dueForLoot = selling && pendingSince > 0 && Date.now() - pendingSince >= SALE_WINDOW_MS;
 				if (dueForVolume || dueForLoot) {
 					const point = sellAtPoint(client, settings);
 					if (point) await walkToPoint(client, point, { within: 340, log: say });
